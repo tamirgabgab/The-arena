@@ -61,7 +61,7 @@ export function runSimulation(hooks) {
     }
   };
   socket.onerror = () => {
-    if (!finished) hooks.onError?.('אין חיבור לשרת הסימולציה – ודאו ש-run.py רץ');
+    if (!finished) hooks.onError?.('החיבור לשרת הסימולציה נכשל. נסו שוב בעוד רגע (בהפעלה הראשונה השרת מתחמם כ-15 שניות).');
   };
   socket.onclose = end;
 }

@@ -5,6 +5,7 @@ import { CATEGORICAL, cssVar, inkOn } from './colors.js';
 import { processResults } from './results.js';
 import { percentAxis } from './detail.js';
 import { fmtInt, fmtMoney, fmtPct } from './format.js';
+import { runStore } from './runstore.js';
 
 const $ = (id) => document.getElementById(id);
 const MAX_COMPARE = 4;
@@ -16,20 +17,11 @@ let pair = [null, null];          // [A, B] for the difference map
 let cmpMetric = 'mean';
 let hooks = {};
 
-// ---------------- API ----------------
-async function api(method, url, body) {
-  const res = await fetch(url, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`שגיאת שרת (${res.status})`);
-  return res.json();
-}
+let store = runStore('server');
 
 async function loadRun(id) {
   if (cache.has(id)) return cache.get(id);
-  const data = await api('GET', `/api/runs/${id}`);
+  const data = await store.get(id);
   const res = processResults(data.result, data.snap);
   res.savedId = id;
   res.name = data.meta.name;
@@ -39,7 +31,7 @@ async function loadRun(id) {
 
 export async function refreshRuns() {
   try {
-    state.saved = await api('GET', '/api/runs');
+    state.saved = await store.list();
   } catch (err) {
     hooks.toast?.(`לא ניתן לטעון סימולציות שמורות: ${err.message}`, 'error');
     state.saved = [];
@@ -51,7 +43,7 @@ export async function refreshRuns() {
 
 export async function saveCurrentRun(name) {
   const res = state.results;
-  const meta = await api('POST', '/api/runs', { name, snap: res.raw.snap, result: res.raw.msg });
+  const meta = await store.save(name, res.raw.snap, res.raw.msg);
   res.savedId = meta.id;
   res.name = meta.name;
   cache.set(meta.id, res);
@@ -137,12 +129,12 @@ async function onRunAction(e) {
     } else if (act === 'rename') {
       const name = prompt('שם חדש לסימולציה:', meta.name);
       if (!name || !name.trim()) return;
-      await api('PATCH', `/api/runs/${id}`, { name: name.trim() });
+      await store.rename(id, name.trim());
       if (cache.has(id)) cache.get(id).name = name.trim();
       await refreshRuns();
     } else if (act === 'delete') {
       if (!confirm(`למחוק את "${meta.name}"? לא ניתן לשחזר.`)) return;
-      await api('DELETE', `/api/runs/${id}`);
+      await store.remove(id);
       cache.delete(id);
       colorOf.delete(id);
       if (state.results?.savedId === id) state.results.savedId = null;
@@ -413,8 +405,9 @@ function drawCompareChart() {
 }
 
 // ---------------- init ----------------
-export function initCompare(h) {
+export function initCompare(h, storageMode = 'server') {
   hooks = h;
+  store = runStore(storageMode);
   $('run-list').addEventListener('click', (e) => { if (e.target.dataset.act && e.target.dataset.act !== 'toggle') onRunAction(e); });
   $('run-list').addEventListener('change', (e) => { if (e.target.dataset.act === 'toggle') onRunAction(e); });
   $('cmp-a').onchange = (e) => { pair[0] = e.target.value; updateDiffHint(); hooks.refreshView?.(); };

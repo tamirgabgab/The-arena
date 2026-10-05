@@ -24,6 +24,22 @@ def config(**over):
     return cfg
 
 
+def test_config_endpoint_local():
+    with TestClient(app) as client:
+        assert client.get("/api/config").json()["storage"] == "server"
+
+
+def test_hosted_mode_caps_sims_and_disables_server_storage(monkeypatch):
+    monkeypatch.setattr(server, "STORAGE_MODE", "browser")
+    monkeypatch.setattr(server, "MAX_SIMS", 1000)
+    with TestClient(app) as client:
+        assert client.get("/api/runs").status_code == 404
+        with client.websocket_connect("/api/run") as ws:
+            ws.send_json(config(n_sims=2000))
+            msg = ws.receive_json()
+            assert msg["type"] == "error" and "1,000" in msg["message"]
+
+
 def test_models_endpoint():
     with TestClient(app) as client:
         models = client.get("/api/models").json()

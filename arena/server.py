@@ -1,4 +1,5 @@
 import asyncio
+import os
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -7,6 +8,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError
 
+from . import ON_VERCEL
 from .engine import board, simulate
 from .engine.duel_models import models_for_api
 from .schemas import Board, Config
@@ -14,6 +16,11 @@ from .storage import RunStore
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 store = RunStore()
+
+# Hosted (public, no persistent disk): saved runs live in each visitor's browser, and the
+# per-run simulation count is capped so one visitor cannot exhaust the CPU quota.
+STORAGE_MODE = "browser" if ON_VERCEL else "server"
+MAX_SIMS = int(os.environ.get("ARENA_MAX_SIMS", 1_000_000 if ON_VERCEL else 10_000_000))
 
 
 @asynccontextmanager
@@ -28,6 +35,11 @@ app = FastAPI(title="The Arena", lifespan=lifespan)
 @app.get("/api/models")
 def get_models():
     return models_for_api()
+
+
+@app.get("/api/config")
+def get_config():
+    return {"storage": STORAGE_MODE, "max_sims": MAX_SIMS, "hosted": ON_VERCEL}
 
 
 @app.post("/api/validate")
@@ -47,6 +59,8 @@ class RenameRun(BaseModel):
 
 
 def _found(fn, *args):
+    if STORAGE_MODE != "server":
+        raise HTTPException(404, "saved runs are stored in the browser on this deployment")
     try:
         return fn(*args)
     except KeyError:
@@ -55,7 +69,7 @@ def _found(fn, *args):
 
 @app.get("/api/runs")
 def list_runs():
-    return store.list()
+    return _found(store.list)
 
 
 @app.get("/api/runs/{run_id}")
@@ -65,7 +79,7 @@ def get_run(run_id: str):
 
 @app.post("/api/runs")
 def save_run(body: SaveRun):
-    return store.save(body.name, body.snap, body.result)
+    return _found(store.save, body.name, body.snap, body.result)
 
 
 @app.patch("/api/runs/{run_id}")
@@ -89,6 +103,9 @@ async def ws_run(ws: WebSocket):
             cfg = Config.model_validate(await ws.receive_json())
         except ValidationError as e:
             await ws.send_json({"type": "error", "message": str(e)})
+            return
+        if cfg.n_sims > MAX_SIMS:
+            await ws.send_json({"type": "error", "message": f"בגרסה המקוונת מותר עד {MAX_SIMS:,} סימולציות בהרצה אחת"})
             return
         check = board.validate(cfg.active, cfg.adjacency)
         if not check["ok"]:

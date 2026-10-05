@@ -275,8 +275,10 @@ function initSimTab() {
   attachThousands($('in-nsims'));
   $('in-nsims').onchange = (e) => {
     const v = readNum(e.target);
-    state.nSims = Math.max(1, Math.min(10_000_000, Number.isFinite(v) ? v : 1));
+    const max = state.server.max_sims;
+    state.nSims = Math.max(1, Math.min(max, Number.isFinite(v) ? v : 1));
     writeNum(e.target, state.nSims);
+    if (v > max) toast(`המקסימום כאן הוא ${fmtInt(max)} סימולציות בהרצה`);
     emit('sim');
   };
   $('in-seed').onchange = (e) => {
@@ -361,7 +363,9 @@ function renderSaveGroup() {
   $('in-run-name').dataset.for = String(res.seed);
   $('save-hint').textContent = saved
     ? '✓ שמורה. אפשר להשוות אותה לסימולציות אחרות בלשונית "השוואה".'
-    : 'סימולציות שמורות מופיעות בלשונית "השוואה", ונשמרות גם אחרי סגירת הדפדפן.';
+    : state.server.storage === 'browser'
+      ? 'סימולציות שמורות מופיעות בלשונית "השוואה". הן נשמרות בדפדפן הזה בלבד.'
+      : 'סימולציות שמורות מופיעות בלשונית "השוואה", ונשמרות גם אחרי סגירת הדפדפן.';
 }
 
 function renderSimSummary() {
@@ -448,10 +452,12 @@ document.addEventListener('keydown', (e) => {
 // ---------------- boot ----------------
 async function boot() {
   try {
-    state.models = await (await fetch('/api/models')).json();
+    [state.models, state.server] = await Promise.all(
+      ['/api/models', '/api/config'].map(async (u) => (await fetch(u)).json()));
   } catch {
-    toast('לא ניתן לטעון את רשימת המודלים מהשרת', 'error');
+    toast('לא ניתן להתחבר לשרת הסימולציה', 'error');
   }
+  state.server ??= { storage: 'server', max_sims: 10_000_000 };
   try { localStorage.removeItem('arena-config-v1'); } catch { /* drop the old auto-saved board */ }
   newBoard(state.rows, state.cols);
   if (!state.models.some((m) => m.id === state.model) && state.models.length) state.model = state.models[0].id;
@@ -466,7 +472,7 @@ async function boot() {
   initCompare({
     setTab, afterBulkChange, toast,
     refreshView: () => { if (state.tab === 'compare') { setGridView(); renderLegend(); } },
-  });
+  }, state.server.storage);
   for (const b of document.querySelectorAll('.tab')) b.onclick = () => setTab(b.dataset.tab);
   $('banners').onclick = (e) => {
     const act = e.target.closest('button')?.dataset.act;
