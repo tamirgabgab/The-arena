@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>הזירה · סימולטור</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <h1>הזירה</h1>
+        <div class="brand-sub">סימולטור מונטה קרלו</div>
+      </div>
+    </div>
+    <div class="run-area">
+      <div class="progress" id="progress" hidden>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+        <div class="progress-text"><span id="progress-pct">0%</span><span id="progress-count"></span></div>
+      </div>
+      <span class="run-blocker" id="run-blocker" hidden></span>
+      <button class="btn ghost" id="btn-cancel" hidden>ביטול</button>
+      <button class="btn primary" id="btn-run">▶ הרץ סימולציה</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel">
+      <nav class="tabs" role="tablist">
+        <button class="tab active" data-tab="map">מפה</button>
+        <button class="tab" data-tab="players">מתמודדים</button>
+        <button class="tab" data-tab="rules">חוקים ומודל</button>
+        <button class="tab" data-tab="sim">סימולציה</button>
+        <button class="tab" data-tab="results">תוצאות</button>
+        <button class="tab" data-tab="compare">השוואה</button>
+      </nav>
+
+      <!-- ===== MAP ===== -->
+      <section class="tab-body" data-body="map">
+        <div class="group">
+          <h3>גודל הקרקע</h3>
+          <div class="row2">
+            <label class="field">שורות<input type="number" id="in-rows" min="1" max="40"></label>
+            <label class="field">עמודות<input type="number" id="in-cols" min="1" max="40"></label>
+          </div>
+        </div>
+        <div class="group">
+          <h3>שכנות <span class="muted">מי יכול לתקוף את מי</span></h3>
+          <div class="adj-choices" id="adj-choices"></div>
+        </div>
+        <div class="group">
+          <h3>כלי ציור</h3>
+          <div class="toolgrid" id="map-tools">
+            <button data-tool="brush" title="מכחול – גרור לציור (B)">✎<span>מכחול</span></button>
+            <button data-tool="eraser" title="מחק – גרור למחיקה (E)">⌫<span>מחק</span></button>
+            <button data-tool="rect" title="מלבן מלא – גרור (R)">▭<span>מלבן</span></button>
+            <button data-tool="ellipse" title="אליפסה / עיגול – גרור (O)">◯<span>אליפסה</span></button>
+            <button data-tool="line" title="קו – גרור (L)">╱<span>קו</span></button>
+            <button data-tool="fill" title="דלי – הופך אזור רציף שלם (F)">◧<span>דלי</span></button>
+          </div>
+          <label class="field inline">גודל מכחול
+            <input type="range" id="in-brush" min="1" max="4" step="1"><output id="out-brush">1</output>
+          </label>
+          <p class="hint">לחצן שמאלי מוסיף משבצות · לחצן ימני או Shift מוחק · Ctrl+Z / Ctrl+Y לביטול ושחזור</p>
+        </div>
+        <div class="group">
+          <h3>צורות מוכנות</h3>
+          <div class="presets" id="presets"></div>
+          <div class="row-btns">
+            <button class="btn small" id="btn-fill-all">מלא הכל</button>
+            <button class="btn small" id="btn-clear-all">נקה הכל</button>
+            <button class="btn small" id="btn-invert">הפוך</button>
+          </div>
+          <div class="row-btns">
+            <button class="btn small" id="btn-undo" title="Ctrl+Z">↶ בטל</button>
+            <button class="btn small" id="btn-redo" title="Ctrl+Y">↷ שחזר</button>
+          </div>
+        </div>
+        <div class="group stat-line" id="map-stats"></div>
+      </section>
+
+      <!-- ===== PLAYERS ===== -->
+      <section class="tab-body" data-body="players" hidden>
+        <div class="group">
+          <h3>בחירת מתמודדים</h3>
+          <div class="toolgrid" id="player-tools">
+            <button data-tool="select" title="קליק לבחירה, גרירה לבחירת מלבן, Shift/Ctrl להוספה">⬚<span>בחירה</span></button>
+            <button data-tool="selbrush" title="צבע בחירה בגרירה (ימני מסיר)">✎<span>מכחול בחירה</span></button>
+            <button data-tool="paint" title="צובע את ערכי p/a שבפאנל ישירות על משבצות">🖌<span>מכחול ערכים</span></button>
+          </div>
+          <label class="field inline">גודל מכחול
+            <input type="range" id="in-brush2" min="1" max="4" step="1"><output id="out-brush2">1</output>
+          </label>
+          <p class="hint">בחירה: קליק / גרירת מלבן · Shift או Ctrl מוסיפים לבחירה · לחצן ימני מסיר</p>
+          <div class="row-btns">
+            <button class="btn small" id="btn-sel-all">בחר הכל</button>
+            <button class="btn small" id="btn-sel-none">נקה בחירה</button>
+            <button class="btn small" id="btn-sel-invert">הפוך בחירה</button>
+            <button class="btn small" id="btn-sel-similar" title="בוחר את כל המתמודדים עם אותם p ו-a כמו הנבחרים">בחר דומים</button>
+          </div>
+          <div class="stat-line" id="sel-count"></div>
+        </div>
+        <div class="group">
+          <h3>הגדרות לנבחרים</h3>
+          <div class="param-row">
+            <label class="chk"><input type="checkbox" id="chk-p" checked> יכולת <b>p</b></label>
+            <input type="range" id="in-p" min="0" max="1" step="0.01">
+            <input type="number" id="num-p" min="0" max="1" step="0.01">
+          </div>
+          <div class="param-row">
+            <label class="chk"><input type="checkbox" id="chk-a" checked> אגרסיביות <b>a</b></label>
+            <input type="range" id="in-a" min="0" max="1" step="0.01">
+            <input type="number" id="num-a" min="0" max="1" step="0.01">
+          </div>
+          <button class="btn primary block" id="btn-apply">החל על הנבחרים</button>
+        </div>
+        <div class="group">
+          <h3>הקצאה אקראית</h3>
+          <div class="row2">
+            <label class="field">פרמטר
+              <select id="rnd-target"><option value="p">p</option><option value="a">a</option></select>
+            </label>
+            <label class="field">התפלגות
+              <select id="rnd-dist"><option value="uniform">אחידה [מ, עד]</option><option value="normal">נורמלית (μ, σ) חתוכה</option></select>
+            </label>
+          </div>
+          <div class="row2">
+            <label class="field" id="rnd-l1">מ-<input type="number" id="rnd-x" step="0.01" value="0.2"></label>
+            <label class="field" id="rnd-l2">עד<input type="number" id="rnd-y" step="0.01" value="0.8"></label>
+          </div>
+          <button class="btn block" id="btn-random">הגרל לנבחרים</button>
+          <p class="hint">אם אין בחירה – חל על כל המתמודדים</p>
+        </div>
+        <div class="group legend-block">
+          <h3>מקרא</h3>
+          <div class="legend-ramp"><span>p = 0</span><div class="ramp" id="ramp-p"></div><span>1</span></div>
+          <div class="legend-a"><div class="a-demo"><div class="a-demo-fill"></div></div><span>הפס בתחתית המשבצת = a (מלא = 1)</span></div>
+        </div>
+      </section>
+
+      <!-- ===== RULES ===== -->
+      <section class="tab-body" data-body="rules" hidden>
+        <div class="group">
+          <h3>בחירת התוקף ע״י הזירה</h3>
+          <label class="radio"><input type="radio" name="sel" value="all"> אקראית מבין כל המתמודדים</label>
+          <label class="radio"><input type="radio" name="sel" value="singles"> רק מבין בעלי משבצת אחת (אם אין – מכולם)</label>
+        </div>
+        <div class="group">
+          <h3>פרסים</h3>
+          <div class="row2">
+            <label class="field">תדירות פרס קטן (כל x קרבות)
+              <input type="number" id="in-prize-every" min="2" step="1">
+            </label>
+            <label class="chk off-chk"><input type="checkbox" id="chk-prize-off"> ללא פרס קטן</label>
+          </div>
+          <div class="row2">
+            <label class="field">פרס קטן (₪)<input type="text" inputmode="numeric" dir="ltr" class="num-text" id="in-small"></label>
+            <label class="field">פרס גדול (₪)<input type="text" inputmode="numeric" dir="ltr" class="num-text" id="in-big"></label>
+          </div>
+          <p class="hint" id="prize-hint"></p>
+        </div>
+        <div class="group">
+          <h3>מודל הדו-קרב <span class="muted">f(p₁,p₂) = הסתברות ניצחון התוקף</span></h3>
+          <select id="model-select" class="block"></select>
+          <div class="formula" id="model-formula" dir="ltr"></div>
+          <p class="model-desc" id="model-desc"></p>
+          <div class="param-row">
+            <label id="model-param-label">z</label>
+            <input type="range" id="in-mparam">
+            <input type="number" id="num-mparam">
+          </div>
+          <div class="param-row">
+            <label title="בהסתברות λ הקרב הוא הטלת מטבע הוגנת">מזל λ</label>
+            <input type="range" id="in-luck" min="0" max="1" step="0.01">
+            <input type="number" id="num-luck" min="0" max="1" step="0.01">
+          </div>
+          <div class="formula small" id="luck-formula" dir="ltr"></div>
+          <div class="chart-box"><canvas id="model-chart"></canvas></div>
+        </div>
+      </section>
+
+      <!-- ===== SIM ===== -->
+      <section class="tab-body" data-body="sim" hidden>
+        <div class="group">
+          <h3>הרצה</h3>
+          <label class="field">מספר סימולציות<input type="text" inputmode="numeric" dir="ltr" class="num-text" id="in-nsims"></label>
+          <label class="field">Seed (ריק = אקראי)<input type="text" id="in-seed" inputmode="numeric" placeholder="למשל 12345" dir="ltr"></label>
+          <button class="btn primary block" id="btn-run2">▶ הרץ סימולציה</button>
+        </div>
+        <div class="group">
+          <h3>קונפיגורציה</h3>
+          <div class="row-btns">
+            <button class="btn small" id="btn-save">💾 שמור לקובץ</button>
+            <button class="btn small" id="btn-load">📂 טען מקובץ</button>
+            <button class="btn small" id="btn-reset">↺ ברירת מחדל</button>
+          </div>
+          <input type="file" id="file-load" accept=".json,application/json" hidden>
+        </div>
+        <div class="group" id="sim-summary"></div>
+      </section>
+
+      <!-- ===== RESULTS ===== -->
+      <section class="tab-body" data-body="results" hidden>
+        <div id="results-empty" class="empty">עדיין אין תוצאות – הריצו סימולציה.</div>
+        <div id="results-body" hidden>
+          <div class="banner warn" id="stale-banner" hidden>ההגדרות השתנו מאז ההרצה – התוצאות מוצגות עבור ההגדרות שהורצו.</div>
+          <div class="group">
+            <h3>צבע מפת החום לפי</h3>
+            <div class="seg" id="metric-seg">
+              <button data-metric="mean" class="active">רווח ממוצע</button>
+              <button data-metric="small">P(פרס קטן)</button>
+              <button data-metric="big">P(פרס גדול)</button>
+            </div>
+            <p class="hint">בכל משבצת: רווח ממוצע · ק = הסתברות לפרס קטן אחד לפחות · ג = הסתברות לפרס הגדול. לחצו על משבצת לפרטים מלאים.</p>
+          </div>
+          <div class="group" id="results-summary"></div>
+          <div class="group" id="save-group">
+            <h3>שמירת הסימולציה</h3>
+            <div class="save-row">
+              <input type="text" id="in-run-name" maxlength="120" placeholder="שם לסימולציה">
+              <button class="btn primary" id="btn-save-run">💾 שמור</button>
+            </div>
+            <p class="hint" id="save-hint">סימולציות שמורות מופיעות בלשונית "השוואה".</p>
+          </div>
+          <div class="group">
+            <h3>המובילים (רווח ממוצע)</h3>
+            <ol class="top-list" id="top-list"></ol>
+          </div>
+          <button class="btn block" id="btn-csv">⬇ ייצוא CSV</button>
+        </div>
+      </section>
+
+      <!-- ===== COMPARE ===== -->
+      <section class="tab-body" data-body="compare" hidden>
+        <div class="group">
+          <h3>סימולציות שמורות <span class="muted">סמנו עד 4 להשוואה</span></h3>
+          <div id="runs-empty" class="empty">אין עדיין סימולציות שמורות. הריצו סימולציה ושמרו אותה מלשונית "תוצאות".</div>
+          <ul class="run-list" id="run-list"></ul>
+        </div>
+        <div id="compare-body" hidden>
+          <div class="group">
+            <h3>השוואת הגדרות ותוצאות</h3>
+            <div class="cmp-table-wrap"><table class="cmp-table" id="cmp-table"></table></div>
+            <p class="hint">שורות מודגשות = הגדרות ששונות בין הסימולציות.</p>
+          </div>
+          <div class="group" id="diff-group">
+            <h3>מפת הפרשים על הלוח</h3>
+            <div class="row2">
+              <label class="field">בסיס (A)<select id="cmp-a"></select></label>
+              <label class="field">השוואה (B)<select id="cmp-b"></select></label>
+            </div>
+            <div class="seg" id="cmp-metric-seg" style="margin-top:10px">
+              <button data-metric="mean" class="active">רווח ממוצע</button>
+              <button data-metric="small">P(פרס קטן)</button>
+              <button data-metric="big">P(פרס גדול)</button>
+            </div>
+            <p class="hint" id="diff-hint"></p>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <section class="stage">
+      <div class="banners" id="banners"></div>
+      <div class="grid-host" id="grid-host" dir="ltr">
+        <canvas id="grid"></canvas>
+      </div>
+      <div class="stage-legend" id="stage-legend"></div>
+    </section>
+  </main>
+
+  <div class="tooltip" id="tooltip" hidden></div>
+  <div class="toasts" id="toasts"></div>
+
+  <div class="modal" id="detail" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <header class="modal-head">
+        <div>
+          <h2 id="detail-title"></h2>
+          <div class="muted" id="detail-sub"></div>
+        </div>
+        <button class="icon-btn" id="detail-close" aria-label="סגור">✕</button>
+      </header>
+      <div class="tiles" id="detail-tiles"></div>
+      <div class="detail-grid">
+        <div class="detail-chart">
+          <div class="chart-controls">
+            <div class="seg" id="dist-seg">
+              <button data-kind="pmf" class="active">היסטוגרמת הסתברות</button>
+              <button data-kind="cdf">התפלגות מצטברת</button>
+            </div>
+            <div class="seg" id="scale-seg" title="איך להציג את הפער הגדול בין ₪0 לשאר הסכומים">
+              <button data-scale="nozero">ללא ₪0</button>
+              <button data-scale="log">לוגריתמי</button>
+              <button data-scale="linear">לינארי</button>
+            </div>
+            <label class="chk" id="cond-wrap" title="מחלק כל הסתברות ב-P(X>0): ההתפלגות של הרווח בהינתן שהמתמודד זכה במשהו">
+              <input type="checkbox" id="chk-cond"> בהינתן זכייה (X&gt;0)
+            </label>
+          </div>
+          <div class="chart-note" id="chart-note"></div>
+          <div class="chart-box tall"><canvas id="detail-chart"></canvas></div>
+          <div class="range-box">
+            <h4>הסתברות לרווח בטווח</h4>
+            <div class="dual-range" dir="ltr">
+              <input type="range" id="rng-lo">
+              <input type="range" id="rng-hi">
+            </div>
+            <div class="row2">
+              <label class="field">מ- (₪)<input type="text" inputmode="numeric" dir="ltr" class="num-text" id="num-lo"></label>
+              <label class="field">עד (₪)<input type="text" inputmode="numeric" dir="ltr" class="num-text" id="num-hi"></label>
+            </div>
+            <div class="range-result" id="range-result"></div>
+          </div>
+        </div>
+        <div class="detail-table">
+          <table>
+            <thead><tr><th>סכום</th><th>מס׳ סימולציות</th><th>הסתברות</th><th>מצטבר</th></tr></thead>
+            <tbody id="detail-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="cmp-detail" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <header class="modal-head">
+        <div>
+          <h2 id="cmp-detail-title"></h2>
+          <div class="muted" id="cmp-detail-sub"></div>
+        </div>
+        <button class="icon-btn" id="cmp-detail-close" aria-label="סגור">✕</button>
+      </header>
+      <div class="detail-grid">
+        <div class="detail-chart">
+          <div class="chart-controls">
+            <div class="seg" id="cmp-scale-seg">
+              <button data-scale="nozero">ללא ₪0</button>
+              <button data-scale="log">לוגריתמי</button>
+              <button data-scale="linear">לינארי</button>
+            </div>
+          </div>
+          <div class="chart-note" id="cmp-chart-note"></div>
+          <div class="chart-box tall"><canvas id="cmp-chart"></canvas></div>
+        </div>
+        <div class="detail-table">
+          <table id="cmp-stats"></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
